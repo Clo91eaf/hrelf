@@ -98,8 +98,7 @@ fn section_to_segment_mapping(
     phdrs: &Vec<ProgramHeader>,
     strtab: &StringTable,
 ) {
-    // let mut segment_to_section: Vec<Vec<String>> = Vec::new();
-    println!("Section to Segment mapping:");
+    println!(" Section to Segment mapping:");
     println!("  Segment Sections...");
     for (i, phdr) in phdrs.iter().enumerate() {
         let mut sections: Vec<String> = Vec::new();
@@ -112,10 +111,7 @@ fn section_to_segment_mapping(
         }
         sections.retain(|s| !s.is_empty());
         println!("  {:02}      {}", i, sections.join(" "));
-        // segment_to_section.push(sections);
     }
-    // println!("{:?}", segment_to_section);
-    println!("{:?}", strtab);
     println!("");
 }
 
