@@ -3,6 +3,7 @@ use elf::abi::EI_VERSION;
 use elf::endian::AnyEndian;
 use elf::section::SectionHeader;
 use elf::segment::ProgramHeader;
+use elf::string_table::StringTable;
 use elf::to_str;
 use elf::ElfBytes;
 
@@ -42,21 +43,21 @@ fn parse_elf_header(ehdr: elf::file::FileHeader<AnyEndian>, ident: &[u8]) {
     println!("  Section header string table index: {:?}", ehdr.e_shstrndx);
 }
 
-fn parse_section_headers(shdrs: Vec<SectionHeader>) {
+fn parse_section_headers(shdrs: Vec<SectionHeader>, strtab: StringTable) {
     println!("Section Headers:");
-    println!("  [Nr] Name              Type              Address            Offset");
-    println!("       Size              EntSize           Flags  Link  Info  Align");
+    println!("  [Nr] Name               Type              Address            Offset");
+    println!("       Size               EntSize           Flags  Link  Info  Align");
     for (i, shdr) in shdrs.iter().enumerate() {
         println!(
-            "  [{:>2}] {:<17} {:<15}   {:016x}   {:08x}",
+            "  [{:>2}] {:<19}{:<15}   {:016x}   {:08x}",
             i,
-            shdr.sh_name,
+            strtab.get(shdr.sh_name as usize).unwrap(),
             to_str::sh_type_to_string(shdr.sh_type),
             shdr.sh_addr,
             shdr.sh_offset
         );
         println!(
-            "       {:016x}  {:016x}  {:<6} {:<5} {:<5} {:<5}",
+            "       {:016x}   {:016x}  {:<6} {:<5} {:<5} {:<5}",
             shdr.sh_size,
             shdr.sh_entsize,
             shdr.sh_flags,
@@ -91,15 +92,27 @@ fn parse_program_headers(phdrs: Vec<ProgramHeader>) {
     println!("");
 }
 
+fn section_to_segment_mapping() {
+
+}
+
 fn main() {
     let args = Args::parse();
     let file_data = std::fs::read(args.file).expect("Could not read file.");
     let slice = file_data.as_slice();
     let file = ElfBytes::<AnyEndian>::minimal_parse(slice).unwrap();
     let ident = slice.get(0..16).unwrap();
-    let shdr: Vec<SectionHeader> = file.section_headers().unwrap().iter().collect();
     let phdr: Vec<ProgramHeader> = file.segments().unwrap().iter().collect();
+    // Get the section header table alongside its string table
+    let (shdrs_opt, strtab_opt) = file
+        .section_headers_with_strtab()
+        .expect("shdrs offsets should be valid");
+    let (shdrs, strtab) = (
+        shdrs_opt.expect("Should have shdrs"),
+        strtab_opt.expect("Should have strtab")
+    );
+    let shdr = shdrs.iter().collect();
     parse_elf_header(file.ehdr, ident);
-    parse_section_headers(shdr);
+    parse_section_headers(shdr, strtab);
     parse_program_headers(phdr);
 }
