@@ -2,6 +2,7 @@ use clap::Parser;
 use elf::abi::EI_VERSION;
 use elf::endian::AnyEndian;
 use elf::section::SectionHeader;
+use elf::segment;
 use elf::segment::ProgramHeader;
 use elf::string_table::StringTable;
 use elf::to_str;
@@ -43,7 +44,7 @@ fn parse_elf_header(ehdr: elf::file::FileHeader<AnyEndian>, ident: &[u8]) {
     println!("  Section header string table index: {:?}", ehdr.e_shstrndx);
 }
 
-fn parse_section_headers(shdrs: Vec<SectionHeader>, strtab: StringTable) {
+fn parse_section_headers(shdrs: &Vec<SectionHeader>, strtab: &StringTable) {
     println!("Section Headers:");
     println!("  [Nr] Name               Type              Address            Offset");
     println!("       Size               EntSize           Flags  Link  Info  Align");
@@ -69,7 +70,7 @@ fn parse_section_headers(shdrs: Vec<SectionHeader>, strtab: StringTable) {
     println!("");
 }
 
-fn parse_program_headers(phdrs: Vec<ProgramHeader>) {
+fn parse_program_headers(phdrs: &Vec<ProgramHeader>) {
     println!("Program Headers:");
     println!("  Type            Offset           VirtAddr         PhysAddr");
     println!("                  FileSiz          MemSiz           Flags  Align");
@@ -92,8 +93,30 @@ fn parse_program_headers(phdrs: Vec<ProgramHeader>) {
     println!("");
 }
 
-fn section_to_segment_mapping() {
-
+fn section_to_segment_mapping(
+    shdrs: &Vec<SectionHeader>,
+    phdrs: &Vec<ProgramHeader>,
+    strtab: &StringTable,
+) {
+    // let mut segment_to_section: Vec<Vec<String>> = Vec::new();
+    println!("Section to Segment mapping:");
+    println!("  Segment Sections...");
+    for (i, phdr) in phdrs.iter().enumerate() {
+        let mut sections: Vec<String> = Vec::new();
+        for shdr in shdrs {
+            if shdr.sh_addr >= phdr.p_vaddr
+                && shdr.sh_addr + shdr.sh_size <= phdr.p_vaddr + phdr.p_memsz
+            {
+                sections.push(strtab.get(shdr.sh_name as usize).unwrap().to_string());
+            }
+        }
+        sections.retain(|s| !s.is_empty());
+        println!("  {:02}      {}", i, sections.join(" "));
+        // segment_to_section.push(sections);
+    }
+    // println!("{:?}", segment_to_section);
+    println!("{:?}", strtab);
+    println!("");
 }
 
 fn main() {
@@ -109,10 +132,11 @@ fn main() {
         .expect("shdrs offsets should be valid");
     let (shdrs, strtab) = (
         shdrs_opt.expect("Should have shdrs"),
-        strtab_opt.expect("Should have strtab")
+        strtab_opt.expect("Should have strtab"),
     );
     let shdr = shdrs.iter().collect();
     parse_elf_header(file.ehdr, ident);
-    parse_section_headers(shdr, strtab);
-    parse_program_headers(phdr);
+    parse_section_headers(&shdr, &strtab);
+    parse_program_headers(&phdr);
+    section_to_segment_mapping(&shdr, &phdr, &strtab);
 }
