@@ -1,5 +1,3 @@
-use core::prelude::rust_2015;
-
 use clap::Parser;
 use elf::abi::EI_VERSION;
 use elf::endian::AnyEndian;
@@ -67,6 +65,30 @@ fn parse_section_headers(shdrs: Vec<SectionHeader>) {
             shdr.sh_addralign,
         );
     }
+    println!("");
+}
+
+fn parse_program_headers(phdrs: Vec<ProgramHeader>) {
+    println!("Program Headers:");
+    println!("  Type            Offset           VirtAddr         PhysAddr");
+    println!("                  FileSiz          MemSiz           Flags  Align");
+    for phdr in phdrs {
+        println!(
+            "  {:<15} {:016x} {:016x} {:016x}",
+            to_str::p_type_to_string(phdr.p_type),
+            phdr.p_offset,
+            phdr.p_vaddr,
+            phdr.p_paddr
+        );
+        println!(
+            "                  {:016x} {:016x} {:<6} {:<5}",
+            phdr.p_filesz,
+            phdr.p_memsz,
+            to_str::p_flags_to_string(phdr.p_flags),
+            phdr.p_align,
+        );
+    }
+    println!("");
 }
 
 fn main() {
@@ -79,4 +101,5 @@ fn main() {
     let phdr: Vec<ProgramHeader> = file.segments().unwrap().iter().collect();
     parse_elf_header(file.ehdr, ident);
     parse_section_headers(shdr);
+    parse_program_headers(phdr);
 }
