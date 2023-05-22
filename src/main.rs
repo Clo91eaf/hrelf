@@ -1,8 +1,8 @@
 use clap::Parser;
-use elf::abi::EI_VERSION;
+use elf::abi;
+use elf::dynamic;
 use elf::endian::AnyEndian;
 use elf::section::SectionHeader;
-use elf::segment;
 use elf::segment::ProgramHeader;
 use elf::string_table::StringTable;
 use elf::to_str;
@@ -26,7 +26,7 @@ fn parse_elf_header(ehdr: elf::file::FileHeader<AnyEndian>, ident: &[u8]) {
     println!("  Magic:    {:02x?}", ident);
     println!("  Class:                      {:?}", ehdr.class);
     println!("  Data:                       {:?}", ehdr.endianness);
-    println!("  Version:                    {:?} (current)", ident[EI_VERSION]);
+    println!("  Version:                    {:?} (current)", ident[abi::EI_VERSION]);
     println!("  OS/ABI:                     {}", to_str::e_osabi_to_string(ehdr.osabi));
     println!("  ABI Version:                {:?}", ehdr.abiversion);
     println!("  Type:                       {}", to_str::e_type_to_human_str(ehdr.e_type).unwrap());
@@ -42,6 +42,7 @@ fn parse_elf_header(ehdr: elf::file::FileHeader<AnyEndian>, ident: &[u8]) {
     println!("  Size of section headers:    {:?} (bytes into file)", ehdr.e_shentsize);
     println!("  Number of section headers:  {:?}", ehdr.e_shnum);
     println!("  Section header string table index: {:?}", ehdr.e_shstrndx);
+    println!("");
 }
 
 fn parse_section_headers(shdrs: &Vec<SectionHeader>, strtab: &StringTable) {
@@ -115,6 +116,20 @@ fn section_to_segment_mapping(
     println!("");
 }
 
+fn parse_dynamic_section(dynamics: &Vec<dynamic::Dyn>, offset: u64) {
+    println!("Dynamic section at offset 0x{:x} contains {} entries:", offset, dynamics.len());
+    println!("  Tag        Type               Value");
+    for dynamic in dynamics {
+        println!(
+            "  0x{:08x} {:<18} 0x{:x}",
+            dynamic.d_tag,
+            to_str::d_tag_to_str(dynamic.d_tag).unwrap(),
+            dynamic.clone().d_val(),
+        );
+    }
+    println!("");
+}
+
 fn main() {
     let args = Args::parse();
     let file_data = std::fs::read(args.file).expect("Could not read file.");
@@ -131,8 +146,23 @@ fn main() {
         strtab_opt.expect("Should have strtab"),
     );
     let shdr = shdrs.iter().collect();
+    let mut dynamic: Vec<dynamic::Dyn> = file
+        .dynamic()
+        .unwrap()
+        .expect("Should have dynamic section")
+        .iter()
+        .collect();
+    dynamic.truncate(dynamic.len() - 4);
+
+    let dynamic_offset = shdrs
+        .iter()
+        .find(|shdr| shdr.sh_type == abi::SHT_DYNAMIC)
+        .unwrap()
+        .sh_offset; 
+
     parse_elf_header(file.ehdr, ident);
     parse_section_headers(&shdr, &strtab);
     parse_program_headers(&phdr);
     section_to_segment_mapping(&shdr, &phdr, &strtab);
+    parse_dynamic_section(&dynamic, dynamic_offset);
 }
