@@ -6,6 +6,7 @@ use elf::relocation::Rela;
 use elf::section::SectionHeader;
 use elf::segment::ProgramHeader;
 use elf::string_table::StringTable;
+use elf::symbol::Symbol;
 use elf::to_str;
 use elf::ElfBytes;
 
@@ -167,6 +168,24 @@ fn parse_reloacation_plt_section(rels: &Vec<Rela>, offset: u64) {
     println!("");
 }
 
+fn parse_symbol_table(symtabs: Vec<Symbol>, strtab: StringTable) {
+    println!("Symbol table '.symtab' contains {} entries:", symtabs.len());
+    println!("   Num: Value            Size  Type       Bind       Vis         Ndx    Name");
+    for (i, symtab) in symtabs.iter().enumerate() {
+        println!(
+            "   {:<3}: {:016x} {:<5} {:<10} {:<10} {:<11} {:<6} {}",
+            i,
+            symtab.st_value,
+            symtab.st_size,
+            to_str::st_symtype_to_string(symtab.st_symtype()),
+            to_str::st_bind_to_string(symtab.st_bind()),
+            to_str::st_vis_to_string(symtab.st_vis()),
+            symtab.st_shndx,
+            strtab.get(symtab.st_name as usize).unwrap(),
+        );
+    }
+}
+
 fn main() {
     let args = Args::parse();
     let file_data = std::fs::read(args.file).expect("Could not read file.");
@@ -214,6 +233,8 @@ fn main() {
         .iter()
         .filter(|shdr| shdr.sh_type == abi::SHT_RELA)
         .collect::<Vec<_>>();
+    let (symtab, symstrtab) = file.symbol_table().unwrap().unwrap();
+    let (dynsym, dynstrtab) = file.dynamic_symbol_table().unwrap().unwrap();
 
     parse_elf_header(file.ehdr, ident);
     parse_section_headers(&shdr, &strtab);
@@ -222,4 +243,5 @@ fn main() {
     parse_dynamic_section(&dynamic, dynamic_offset);
     parse_reloacation_dynamic_section(&rel[0], rel_offset[0].sh_offset);
     parse_reloacation_plt_section(&rel[1], rel_offset[1].sh_offset);
+    parse_symbol_table(symtab.iter().collect(), symstrtab);
 }
