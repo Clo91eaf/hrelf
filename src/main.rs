@@ -7,6 +7,7 @@ use elf::section::SectionHeader;
 use elf::segment::ProgramHeader;
 use elf::string_table::StringTable;
 use elf::symbol::Symbol;
+use elf::hash::GnuHashHeader;
 use elf::to_str;
 use elf::ElfBytes;
 
@@ -168,7 +169,7 @@ fn parse_reloacation_plt_section(rels: &Vec<Rela>, offset: u64) {
     println!("");
 }
 
-fn parse_dynsym_table(dynsyms: Vec<Symbol>, strtab: StringTable) {
+fn parse_dynsym_table(dynsyms: &Vec<Symbol>, strtab: &StringTable) {
     println!("Symbol table '.dynsym' contains {} entries:", dynsyms.len());
     println!("   Num: Value            Size  Type       Bind       Vis         Ndx    Name");
     for (i, dynsym) in dynsyms.iter().enumerate() {
@@ -187,7 +188,7 @@ fn parse_dynsym_table(dynsyms: Vec<Symbol>, strtab: StringTable) {
     println!("");
 }
 
-fn parse_symbol_table(symtabs: Vec<Symbol>, strtab: StringTable) {
+fn parse_symbol_table(symtabs: &Vec<Symbol>, strtab: &StringTable) {
     println!("Symbol table '.symtab' contains {} entries:", symtabs.len());
     println!("   Num: Value            Size  Type       Bind       Vis         Ndx    Name");
     for (i, symtab) in symtabs.iter().enumerate() {
@@ -203,6 +204,12 @@ fn parse_symbol_table(symtabs: Vec<Symbol>, strtab: StringTable) {
             strtab.get(symtab.st_name as usize).unwrap(),
         );
     }
+}
+
+fn parse_gnu_hash(gnu_hash: &GnuHashHeader) {
+    println!("Histogram for `.gnu.hash` bucket list length (total of {} buckets):", gnu_hash.nbucket);
+    println!(" Length  TableStart  NBloom  NShift");  
+    println!(" {:<6}  {:<10}  {:<6}  {:<6}", 0, gnu_hash.table_start_idx, gnu_hash.nbloom, gnu_hash.nshift);
 }
 
 fn main() {
@@ -252,9 +259,13 @@ fn main() {
         .iter()
         .filter(|shdr| shdr.sh_type == abi::SHT_RELA)
         .collect::<Vec<_>>();
-    let (symtab, symstrtab) = file.symbol_table().unwrap().unwrap();
-    let (dynsym, dynstrtab) = file.dynamic_symbol_table().unwrap().unwrap();
-
+    let common_data = file.find_common_data().unwrap();
+    let symtab = common_data.symtab.unwrap();
+    let symtab_strs = common_data.symtab_strs.unwrap();
+    let dynsyms = common_data.dynsyms.unwrap();
+    let dynsyms_strs = common_data.dynsyms_strs.unwrap();
+    let gnu_hash = common_data.gnu_hash.unwrap();
+        
     parse_elf_header(file.ehdr, ident);
     parse_section_headers(&shdr, &strtab);
     parse_program_headers(&phdr);
@@ -262,6 +273,7 @@ fn main() {
     parse_dynamic_section(&dynamic, dynamic_offset);
     parse_reloacation_dynamic_section(&rel[0], rel_offset[0].sh_offset);
     parse_reloacation_plt_section(&rel[1], rel_offset[1].sh_offset);
-    parse_dynsym_table(dynsym.iter().collect(), dynstrtab);
-    parse_symbol_table(symtab.iter().collect(), symstrtab);
+    parse_dynsym_table(&dynsyms.iter().collect(), &dynsyms_strs);
+    parse_symbol_table(&symtab.iter().collect(), &symtab_strs);
+    parse_gnu_hash(&gnu_hash.hdr);
 }
