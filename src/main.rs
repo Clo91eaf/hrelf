@@ -2,6 +2,7 @@ use clap::Parser;
 use elf::abi;
 use elf::dynamic;
 use elf::endian::AnyEndian;
+use elf::relocation::Rela;
 use elf::section::SectionHeader;
 use elf::segment::ProgramHeader;
 use elf::string_table::StringTable;
@@ -117,7 +118,11 @@ fn section_to_segment_mapping(
 }
 
 fn parse_dynamic_section(dynamics: &Vec<dynamic::Dyn>, offset: u64) {
-    println!("Dynamic section at offset 0x{:x} contains {} entries:", offset, dynamics.len());
+    println!(
+        "Dynamic section at offset 0x{:x} contains {} entries:",
+        offset,
+        dynamics.len()
+    );
     println!("  Tag        Type               Value");
     for dynamic in dynamics {
         println!(
@@ -125,6 +130,38 @@ fn parse_dynamic_section(dynamics: &Vec<dynamic::Dyn>, offset: u64) {
             dynamic.d_tag,
             to_str::d_tag_to_str(dynamic.d_tag).unwrap(),
             dynamic.clone().d_val(),
+        );
+    }
+    println!("");
+}
+
+fn parse_reloacation_dynamic_section(rels: &Vec<Rela>, offset: u64) {
+    println!(
+        "Relocation section '.rela.dyn' at offset 0x{:x} contains {} entry:",
+        offset,
+        rels.len()
+    );
+    println!("  Offset          Info                   Sym. Value    Sym. Name + Addend");
+    for rel in rels {
+        println!(
+            "  {:016x} {:04x}{:08x} {:016x}",
+            rel.r_offset, rel.r_sym, rel.r_type, rel.r_addend,
+        );
+    }
+    println!("");
+}
+
+fn parse_reloacation_plt_section(rels: &Vec<Rela>, offset: u64) {
+    println!(
+        "Relocation section '.rela.plt' at offset 0x{:x} contains {} entry:",
+        offset,
+        rels.len()
+    );
+    println!("  Offset           Info         Addend");
+    for rel in rels {
+        println!(
+            "  {:016x} {:04x}{:08x} {:016x}",
+            rel.r_offset, rel.r_sym, rel.r_type, rel.r_addend,
         );
     }
     println!("");
@@ -158,11 +195,31 @@ fn main() {
         .iter()
         .find(|shdr| shdr.sh_type == abi::SHT_DYNAMIC)
         .unwrap()
-        .sh_offset; 
+        .sh_offset;
+
+    let rel_section = shdrs
+        .iter()
+        .filter(|shdr| shdr.sh_type == abi::SHT_RELA)
+        .collect::<Vec<_>>();
+    let rel = rel_section
+        .iter()
+        .map(|shdr| {
+            let rels = file
+                .section_data_as_relas(shdr)
+                .expect("Should have relocations");
+            rels.collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let rel_offset = shdrs
+        .iter()
+        .filter(|shdr| shdr.sh_type == abi::SHT_RELA)
+        .collect::<Vec<_>>();
 
     parse_elf_header(file.ehdr, ident);
     parse_section_headers(&shdr, &strtab);
     parse_program_headers(&phdr);
     section_to_segment_mapping(&shdr, &phdr, &strtab);
     parse_dynamic_section(&dynamic, dynamic_offset);
+    parse_reloacation_dynamic_section(&rel[0], rel_offset[0].sh_offset);
+    parse_reloacation_plt_section(&rel[1], rel_offset[1].sh_offset);
 }
