@@ -2,14 +2,15 @@ use clap::Parser;
 use elf::abi;
 use elf::dynamic;
 use elf::endian::AnyEndian;
+use elf::hash::GnuHashHeader;
 use elf::relocation::Rela;
 use elf::section::SectionHeader;
 use elf::segment::ProgramHeader;
 use elf::string_table::StringTable;
 use elf::symbol::Symbol;
-use elf::hash::GnuHashHeader;
 use elf::to_str;
 use elf::ElfBytes;
+use std::collections::HashMap;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -204,12 +205,31 @@ fn parse_symbol_table(symtabs: &Vec<Symbol>, strtab: &StringTable) {
             strtab.get(symtab.st_name as usize).unwrap(),
         );
     }
+    println!("");
 }
 
-fn parse_gnu_hash(gnu_hash: &GnuHashHeader) {
-    println!("Histogram for `.gnu.hash` bucket list length (total of {} buckets):", gnu_hash.nbucket);
-    println!(" Length  TableStart  NBloom  NShift");  
-    println!(" {:<6}  {:<10}  {:<6}  {:<6}", 0, gnu_hash.table_start_idx, gnu_hash.nbloom, gnu_hash.nshift);
+fn parse_gnu_hash(gnu_hash_header: &GnuHashHeader, gnu_hash_section: &SectionHeader, gnu_hash_table: &[u8], strtab: &StringTable, symtabs: &Vec<Symbol>) {
+    todo!("parse_gnu_hash");
+}
+
+fn parse_gnu_version(gnu_version: &SectionHeader) {
+    todo!("parse_gnu_version");
+}
+
+fn parse_gnu_version_r(gnu_version_r: &SectionHeader) {
+    todo!("parse_gnu_version_r");
+}
+
+fn parse_note_gnu_property(note_gnu_property: &SectionHeader) {
+    todo!("parse_note_gnu_property");
+}
+
+fn parse_note_gnu_build_id(note_gnu_build_id: &SectionHeader) {
+    todo!("parse_note_gnu_build_id");
+}
+
+fn parse_note_gnu_abi_tag(note_gnu_abi_tag: &SectionHeader) {
+    todo!("parse_note_gnu_abi_tag");
 }
 
 fn main() {
@@ -264,8 +284,10 @@ fn main() {
     let symtab_strs = common_data.symtab_strs.unwrap();
     let dynsyms = common_data.dynsyms.unwrap();
     let dynsyms_strs = common_data.dynsyms_strs.unwrap();
-    let gnu_hash = common_data.gnu_hash.unwrap();
-        
+    let gnu_hash_header = common_data.gnu_hash.unwrap();
+    let gnu_hash_section = file.section_header_by_name(".gnu.hash").unwrap().unwrap();
+    let (gnu_hash_table, _) = file.section_data(&gnu_hash_section).unwrap();
+
     parse_elf_header(file.ehdr, ident);
     parse_section_headers(&shdr, &strtab);
     parse_program_headers(&phdr);
@@ -275,5 +297,10 @@ fn main() {
     parse_reloacation_plt_section(&rel[1], rel_offset[1].sh_offset);
     parse_dynsym_table(&dynsyms.iter().collect(), &dynsyms_strs);
     parse_symbol_table(&symtab.iter().collect(), &symtab_strs);
-    parse_gnu_hash(&gnu_hash.hdr);
+    parse_gnu_hash(&gnu_hash_header.hdr, &gnu_hash_section, &gnu_hash_table, &symtab_strs, &symtab.iter().collect());
+    parse_gnu_version(&file.section_header_by_name(".gnu.version").unwrap().unwrap());
+    parse_gnu_version_r(&file.section_header_by_name(".gnu.version_r").unwrap().unwrap());
+    parse_note_gnu_property(&file.section_header_by_name(".note.gnu.property").unwrap().unwrap());
+    parse_note_gnu_build_id(&file.section_header_by_name(".note.gnu.build-id").unwrap().unwrap());
+    parse_note_gnu_abi_tag(&file.section_header_by_name(".note.gnu.abi-tag").unwrap().unwrap());
 }
